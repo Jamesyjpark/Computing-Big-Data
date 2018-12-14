@@ -1,0 +1,103 @@
+---
+title: "BST-262: Assignment 1"
+author: "Your Name"
+date: "Due Friday, November 30 2018, 5pm"
+output: pdf_document
+---
+
+**Please edit the following information:**
+
+- Name: Your Name
+
+- Last 5 digits of Harvard ID (please upload the corresponding HUID picture): xxxxx
+
+- GitHub username: xxxx
+
+- GitHub repository of your homework 1: https://github.com/BST262/BST262/bst-262-homework-1-2018-xxx
+
+Add your answers to this document template, and commit your changes to GitHub.
+
+Since this is an RMarkdown document, you can mix text and code to better explain your answers.
+
+Export this RMarkdown document to PDF.  (Make sure that anyone would be able to generate the same PDF if they were to clone your repository.  Also, if you do not manage to export to PDF directly, then export to HTML or Word, and then convert to PDF.)
+
+**Upload the PDF to Canvas by Friday, November 29 2018, 5pm.**
+
+# Exercise 1 - Julia (language: Julia)
+
+Add comments
+
+```
+"Add your Julia code here"
+```
+
+# Exercise 2 - Data parallelism vs task parallism (language: R)
+
+## Question 1
+
+Add comments
+
+```{r}
+# Add your R code
+print("hello")
+```
+
+## Question 2
+
+Add comments
+
+```{r}
+# Add your R code
+print("hello")
+```
+
+# Exercise 3 - Grouped data operations and maps (language: R or Python)
+
+## Question 1
+
+Add comments
+
+```{r}
+# Add your R code
+print("hello")
+```
+
+or
+
+```{python}
+# Add your Python code
+print("hello")
+```
+ 
+## Question 2
+
+Add comments
+
+```{r}
+# Add your R code
+print("hello")
+```
+
+or
+
+```{python}
+# Add your Python code
+print("hello")
+```
+ 
+## Question 3
+
+Add comments
+
+```{r}
+# Add your Python code
+print("hello")
+```
+
+or
+
+```{python}
+# Add your Python code
+print("hello")
+```
+ 

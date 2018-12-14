@@ -1,19 +1,23 @@
 ---
-title: "BST-262: Assignment 1"
-author: "Your Name"
+title: 'BST-262: Assignment 1'
+author: Yeongjun Park
 date: "Due Friday, November 30 2018, 5pm"
-output: pdf_document
+output:
+  word_document: default
+  pdf_document: default
+  html_document:
+    df_print: paged
 ---
 
 **Please edit the following information:**
 
-- Name: Your Name
+- Name: Yeongjun Park
 
-- Last 5 digits of Harvard ID (please upload the corresponding HUID picture): xxxxx
+- Last 5 digits of Harvard ID (please upload the corresponding HUID picture): 54308
 
-- GitHub username: xxxx
+- GitHub username: Jamesyjpark
 
-- GitHub repository of your homework 1: https://github.com/BST262/BST262/bst-262-homework-1-2018-xxx
+- GitHub repository of your homework 1: https://github.com/BST262/bst-262-homework-1-2018-Jamesyjpark
 
 Add your answers to this document template, and commit your changes to GitHub.
 
@@ -25,79 +29,267 @@ Export this RMarkdown document to PDF.  (Make sure that anyone would be able to 
 
 # Exercise 1 - Julia (language: Julia)
 
-Add comments
+First, one must understand what this function does. L is a list in R with 5 key-value relationships. In Python, this would be created using a key-value association. Therefore, we can create 5 key-value relationships and store them in a dictionarry using Julia.
+
+In this list, the ﬁve keys are US, EU, CH, JP, and FR with associative values of 19.3, 17.1, 11.9, 4.9, and 3.6 respectively.
+
+‘getmax’ is an R function that returns the key with the largest value among all available key-value relationships. This function can be replicated in Julia by creating a function that returns a key with the highest value.
 
 ```
-"Add your Julia code here"
+d = Dict("US" => 19.3, "EU" => 17.1, "CH" => 11.9, "JP" => 4.9, "FR" => 3.6)
+
+function maxkey(x)
+  findmax(x)[2]
+end
+
+maxkey(d)
 ```
 
 # Exercise 2 - Data parallelism vs task parallism (language: R)
 
-## Question 1
+## Question 1: Data parallelism
 
-Add comments
+### Part 1
+```{r, message = FALSE}
+library(tm)
+library(parallel)
+library(stringr)
 
-```{r}
-# Add your R code
-print("hello")
+cadec <- VCorpus(DirSource(directory = "data/cadec/text/"
+                           , encoding = "UTF-8")) 
+
+Arthrotec <- VCorpus(DirSource(directory = "data/cadec/text/"
+                               , encoding = "UTF-8", pattern = "ARTHROTEC")) 
+
+Lipitor <- VCorpus(DirSource(directory = "data/cadec/text/"
+                             , encoding = "UTF-8", pattern = "LIPITOR")) 
+
+Voltaren <- VCorpus(DirSource(directory = "data/cadec/text/"
+                              , encoding = "UTF-8", pattern = "VOLTAREN")) 
+
+cat("There are", length(Arthrotec), "documents reviewing Arthrotec medication.","\n")
+
+cat("There are", length(Lipitor), "documents reviewing Lipitor medication.","\n")
+
+cat("There are", length(Voltaren), "documents reviewing Voltaren medication.","\n")
 ```
 
-## Question 2
+Note that these sum to 1213, but where are the rest of 37 documents from? There are other medications that comprise small portions of the total composite medication folder such as Cataflam, Diclofenacsodium, Pennsaid, Solaraze, and Zipsor.
 
-Add comments
+### Part 2
+
+Before solving this problem using data parallelism, one can quickly check the number of documents with the word "pain" using a local cluster as a cross-validation source to see if these numbers match those of data parallelism. 
 
 ```{r}
-# Add your R code
-print("hello")
+## Using local cluster
+cl <- makeCluster(detectCores())
+
+sum(parSapply(cl, Arthrotec, grep, pattern = "pain") == 1, na.rm = TRUE)
+sum(parSapply(cl, Lipitor, grep, pattern = "pain") == 1, na.rm = TRUE)
+sum(parSapply(cl, Voltaren, grep, pattern = "pain") == 1, na.rm = TRUE)
 ```
+
+Using a socket cluster, we can see that there are 108 documents with the word "pain" in the Arthrotec medication, 551 in the Lipitor medication, and 34 documents in the Voltaren medication.
+
+The main idea of data parallelism is to split the data on the available cluster cores in a balanced way so that each core has to process more or less amount of data. Let's see if we get identical numbers using data parallelism by distributing the work through 8 nodes.
+
+```{r}
+# socket cluster with 8 nodes onh host "localhost"
+Arthrotec.part <- clusterSplit(cl, Arthrotec)
+# now the work is distributed through socket cluster with 8 nodes
+
+class(Arthrotec)
+class(Arthrotec.part) 
+# Notice the difference in data structures
+# parSapply need to go through each list of the local cluster
+
+data.parallel <- function(word, x){
+  sum(as.numeric(parSapply(cl, word[[x]], grep, pattern = "pain"))
+      , na.rm = TRUE)}
+
+# Remember that the range will be from 1 to 8 as I am working with 8 cores
+adding <- 
+  function(word){
+    sum(data.parallel(word, 1) + data.parallel(word, 2) + data.parallel(word, 3) +
+          data.parallel(word, 4) + data.parallel(word, 5) + data.parallel(word, 6) +
+          data.parallel(word, 7) + data.parallel(word, 8))}
+
+Arthrotec.total <- adding(Arthrotec.part)
+cat("There are", Arthrotec.total, "documents reviewing Arthrotec medication.","\n")
+
+Lipitor.part <- clusterSplit(cl, Lipitor)
+Lipitor.total <- adding(Lipitor.part)
+cat("There are", Lipitor.total, "documents reviewing Lipitor medication.","\n")
+
+Voltaren.part <- clusterSplit(cl, Voltaren)
+Voltaren.total <- adding(Voltaren.part)
+cat("There are", Voltaren.total, "documents reviewing Lipitor medication.","\n")
+```
+
+The results from this exercise align with the initial attempt. There are:
+
+* 108 documents with the word "pain" in Arthrotrc
+* 551 documents with the word "pain" in Lipitor
+* 34 documents with the word "pain" in Voltaren
+
+### Part 3
+
+The proportion of documents that mention the word "pain" over the total number of documents among three medications of interest is:
+```{r}
+cat(paste0(sprintf("%.5s",paste0(Arthrotec.total*100/length(Arthrotec))), "%"),"of the total Arthrotec medication has the word pain.","\n")
+
+cat(paste0(sprintf("%.5s",paste0(Lipitor.total*100/length(Lipitor))), "%"),"of the total Lipitor medication has the word pain.","\n")
+
+cat(paste0(sprintf("%.5s",paste0(Voltaren.total*100/length(Voltaren))), "%"),"of the total Voltaren medication has the word pain.","\n")
+```
+
+
+## Question 2: Task parallelism
+
+For task parallelism, we want to leverage the cores of the local cluster to perform diﬀerent tasks. Instead of waiting for a task to complete, let's replace the code to make it more efficient by using different cores of the cluster. Taking advantage of modern processor architectures that provide multiple cores on a single processor helps with cpu-bound computations. Doing so enables multiple computations to take place at the same time while allowing large computations to occur across the entire cluster of those computers. Additionally, these machines have large amount of memories to avoid memory-bound computing jobs. 
+
+```{r}
+# First, define the count function
+count <- function(word){
+  l = sapply(cadec, function(x) {str_count(tolower(x), pattern=word)})
+    sum(sapply(l,sum))}
+
+# Second, I define the list of functions I want to call on the local cluster
+calls <- c('pain',"bleeding", "headache", "nausea")
+
+# Third, export the current state of the R master to make the workers aware of the current state of the master R
+clusterExport(cl, c("count","cadec","str_count"))
+
+# Fourth, Run the function
+parSapply(cl, X = calls,
+          function(x) {do.call("count", list(word=x))}) 
+
+# Lastly, stop the cluster
+# stopCluster()
+```
+
+The count function counts the number of a specific word in the given data by taking the parameter "word". 
+
+In the ParSapply function, X is the vector that one hopes to parallelize. In this example, we are hoping to parallelize four different words. We define a function thats uses the do.call command as we want to separate each job to a different cluster, and this function takes the parameter x. In order to pass x into our count function, we need to make word =x.
+
+Here, we are using a socket cluster. Every worker of the cluster starts with a brand new R session: the worker is aware of built-in functions and data, but not of user_defined ones. Therefore, we use the 'do.call' syntax that allows us to transfer function calls.
+
+The numbers obtained from task parallelism make sense by looking at how many medication documents contain these words. 
+```{r}
+pain <- sum(parSapply(cl, cadec, grep, pattern = "pain") == 1, na.rm = TRUE)
+bleeding <- sum(parSapply(cl, cadec, grep, pattern = "bleeding") == 1, na.rm = TRUE)
+headache <- sum(parSapply(cl, cadec, grep, pattern = "headache") == 1, na.rm = TRUE)
+nausea <- sum(parSapply(cl, cadec, grep, pattern = "nausea") == 1, na.rm = TRUE)
+
+
+cat(pain, "documents in the total cadec medication contain the word pain.","\n")
+cat(bleeding, "documents in the total cadec medication contain the word bleeding","\n")
+cat(headache, "documents in the total cadec medication contain the word headache","\n")
+cat(nausea, "documents in the total cadec medication contain the word nausea","\n")
+```
+
+It makes sense that there are more occurrences of these words mentioned than the number of documents that contain these words because some of the documents contain more than one occurrence of one or more of these words. For instance, if you look at this particular document, the word "pain" is mentioned twice.
+```{r}
+inspect(cadec[[3]])
+```
+
+Processing large amount of data can be time consuming; therefore, processing them may greately beneﬁt from parallelization. Many R scripts run fast on a single processor; however, at times, computations can be cpu-bound and memory-bound. A model CPU is at the heart of every computer. While traditional computers had a single CPU, modern computers are equipped with multiple processors that can each contain multiple cores. 
+
+It's important to understand when to parallelize because not all tasks can be parallelized. While in theory each added processor would increase the throughput of the computation, there may be overhead that reduces this efficiency. For instance, the data need to be copied to each additional CPU, which takes time. Also, new processes need to be created by the operating system. The overhead decreases the efficacy that the actual performance gain may be much less than theoretical. 
+
+[Amdahl's law](https://en.wikipedia.org/wiki/Amdahl%27s_law) provides the theoretical speedup in latency of the execution of a task at fixed workload that can be expected of a system whose resources are improved. A key take-away from this is that depending on the propotion, the expected speedup can be significantly reduced.
+
+In this particular exercise, one can use various base-R functions like 'system.time' or different functions from different CRAN-available packages to see if the execution is actually faster after using parallelism. 
+
 
 # Exercise 3 - Grouped data operations and maps (language: R or Python)
 
-## Question 1
+The data used in this question is obtained from [Centers for Medicare & Medicaid Services (CMS)](https://www.cms.gov/). 
 
-Add comments
+### Step 1 - Calculate the inpatient cost
+
+```{r, message = FALSE}
+library(dplyr)
+library(usmap)
+library(ggplot2)
+library(scales)
+
+inpatient <- 
+  read.csv("data/medicare/Medicare_Provider_Charge_Inpatient_DRGALL_FY2015.csv")
+
+# Total payment is average * number of discharges for inpatient cost
+inpatient <-
+  inpatient %>%
+  group_by(Provider.State) %>%
+  summarize(total = sum(Average.Total.Payments * Total.Discharges)) %>%
+  arrange(desc(total))
+
+colnames(inpatient) <- c("state", "total")
+head(inpatient)
+```
+
+### Step 2 - Calculate the outpatient cost
 
 ```{r}
-# Add your R code
-print("hello")
+outpatient <- 
+  read.csv("data/medicare/Medicare_Charge_Outpatient_APC28_CY2015_Provider.csv")
+
+# Total payment is average * number of services for outpatient cost
+outpatient <-
+  outpatient %>%
+  group_by(Provider_State) %>%
+  summarize(total = sum(Average_Total_Payments * Outpatient_Services)) %>%
+  arrange(desc(total))
+
+colnames(outpatient) <- c("state", "total")
+head(outpatient)
 ```
 
-or
+### Step 3 - Add the two numbers together
 
-```{python}
-# Add your Python code
-print("hello")
+```{r, warning = FALSE}
+# Add a total cost column by summing the inpatient and the outpatient column
+totalcost <-
+  full_join(inpatient, outpatient, by = "state") %>%
+  mutate(total.sum = total.x + total.y) %>%
+  select(-c(total.x, total.y))
 ```
- 
-## Question 2
 
-Add comments
+Before finalizing the dataframe, a good data scientist should make sure that the numbers are correctly added, and the potential missing data is sufficiently dealt with.
 
 ```{r}
-# Add your R code
-print("hello")
+all.equal(outpatient$state, inpatient$state) 
 ```
 
-or
-
-```{python}
-# Add your Python code
-print("hello")
-```
- 
-## Question 3
-
-Add comments
+This tells you that the two data frames have different number of rows, which would cause a problem when they are merged together. After examining this issue deeper, one can find out that Maryland is missing from the outpatient dataframe. This missing value should be replaced as 0 so that the numbers are correctly added.
 
 ```{r}
-# Add your Python code
-print("hello")
+totalcost <- merge(inpatient, outpatient, all = TRUE, by = "state")
+totalcost[is.na(totalcost)] <- 0
+
+totalcost <-
+  totalcost %>%
+  mutate(total.sum = total.x + total.y) %>%
+  select(-c(total.x, total.y)) %>%
+  arrange(desc(total.sum))
+
+head(totalcost) # This is the final data frame
 ```
 
-or
+Now that we have a final dataframe, we can make a chropleth map of the US that represents the total cost per state.
 
-```{python}
-# Add your Python code
-print("hello")
+### Step 4 - Choropleth map
+
+```{r}
+plot_usmap(data = totalcost, values = "total.sum", labels = TRUE) +
+  scale_fill_continuous(low = "white", high = "purple", name = "Total cost", labels = comma) +
+  theme(legend.position = "right") +
+  labs(title = "The Total Cost (inpatient and outpatient) per State Across the U.S") +
+  theme(plot.title = element_text(hjust = 0.5))
 ```
- 
+
+As one can see, huge variations exist in the total cost across state lines. One should note that this may not be the clearest representation of the average cost for each patient because there are many factors that are incorporated that lead to this total cost such as the total population each. According to the map, California has the highest total cost, and by examining both inpatient and outpatient dataframes, it has the highest cost for both inpatient and outpatient services. 
+
+In state legislatures and in Washinton, average state prices and how they compare to national averages have been a controversial topic. Knowing the average cost in one's own town or state may be helpful if you are a researcher, but it is not too helpful for consumers to make effective decisions. More efforts are needed to make the health cost transparent, and this endeavor must be closely monitored. For example, in Massachusetts, healthcare cost transparency is imperative by the law; however, many states do not have this requirement. A more updated, detailed dataset is needed to get it right in the eyes of the customers.
+
+
